@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ayuda — COTIZALO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0E1417; --surface:#161E23; --surface2:#1D272D; --line:#293338;
+    --text:#EEF2F3; --muted:#8CA0A8; --gold:#E8A94A; --gold-dim:rgba(232,169,74,.14);
+    --teal:#49B3A6; --teal-dim:rgba(73,179,166,.14); --violet:#8B7FD6; --violet-dim:rgba(139,127,214,.15);
+    --danger:#D9695A;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;line-height:1.6;overflow-x:hidden;position:relative;}
+
+  .bg-fx{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;}
+  .blob{position:absolute;border-radius:50%;filter:blur(80px);}
+  .blob1{width:420px;height:420px;background:radial-gradient(circle,#1d8a78,transparent 70%);top:-160px;left:-120px;opacity:.25;animation:float1 18s ease-in-out infinite;}
+  .blob2{width:360px;height:360px;background:radial-gradient(circle,var(--gold),transparent 70%);bottom:-140px;right:-100px;opacity:.15;animation:float2 22s ease-in-out infinite;}
+  .blob3{width:280px;height:280px;background:radial-gradient(circle,var(--violet),transparent 70%);top:40%;left:65%;opacity:.12;animation:float3 25s ease-in-out infinite;}
+  @keyframes float1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(40px,55px) scale(1.1);}}
+  @keyframes float2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-45px,-30px) scale(1.15);}}
+  @keyframes float3{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-25px,35px) scale(.9);}}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+
+  .wrap{max-width:640px;margin:0 auto;padding:26px 18px 70px;position:relative;z-index:1;}
+
+  header{display:flex;align-items:center;gap:12px;margin-bottom:22px;animation:fadeUp .5s ease;}
+  .back-link{
+    width:38px;height:38px;border-radius:11px;background:var(--surface2);border:1px solid var(--line);
+    color:var(--text);display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:17px;flex-shrink:0;
+  }
+  .mark{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--gold),#c9862e);
+    display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;color:#171203;font-size:17px;flex-shrink:0;}
+  header h1{font-family:'Space Grotesk',sans-serif;font-size:20px;margin:0;}
+  header p{font-size:12px;color:var(--muted);margin:2px 0 0;}
+
+  .search-box{
+    display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);
+    border-radius:13px;padding:12px 14px;margin-bottom:22px;animation:fadeUp .5s ease .05s both;
+  }
+  .search-box input{flex:1;background:none;border:none;outline:none;color:var(--text);font-size:14.5px;font-family:'Inter',sans-serif;}
+  .search-box svg{flex-shrink:0;color:var(--muted);}
+
+  .toc{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:26px;}
+  .toc a{
+    font-size:12.5px;font-weight:600;color:var(--muted);background:var(--surface);border:1px solid var(--line);
+    padding:7px 13px;border-radius:100px;text-decoration:none;transition:.15s;
+  }
+  .toc a:hover{border-color:var(--gold);color:var(--gold);}
+
+  .topic{
+    background:var(--surface);border:1px solid var(--line);border-radius:16px;margin-bottom:12px;overflow:hidden;
+    animation:fadeUp .4s ease both;
+  }
+  .topic-head{
+    display:flex;align-items:center;gap:12px;padding:16px 16px;cursor:pointer;user-select:none;
+  }
+  .topic-icon{width:36px;height:36px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;}
+  .topic-head h2{font-family:'Space Grotesk',sans-serif;font-size:15px;margin:0;flex:1;}
+  .chevron{color:var(--muted);transition:transform .25s;font-size:12px;flex-shrink:0;}
+  .topic.open .chevron{transform:rotate(180deg);}
+  .topic-body{max-height:0;overflow:hidden;transition:max-height .3s ease;}
+  .topic.open .topic-body{max-height:900px;}
+  .topic-body-inner{padding:0 16px 18px 64px;font-size:13.5px;color:#cfd8db;}
+  .topic-body-inner p{margin:0 0 10px;}
+  .topic-body-inner ul, .topic-body-inner ol{margin:0 0 10px;padding-left:18px;}
+  .topic-body-inner li{margin-bottom:6px;}
+  .topic-body-inner b{color:var(--text);}
+  .pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;border-radius:100px;padding:2px 9px;margin:0 2px;}
+  .pill.gold{background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold);}
+  .pill.teal{background:var(--teal-dim);color:var(--teal);border:1px solid var(--teal);}
+  .pill.violet{background:var(--violet-dim);color:var(--violet);border:1px solid var(--violet);}
+  .note{background:var(--teal-dim);border:1px solid var(--teal);border-radius:10px;padding:10px 12px;font-size:12.5px;margin-top:6px;}
+  .warn{background:rgba(217,105,90,.12);border:1px solid var(--danger);border-radius:10px;padding:10px 12px;font-size:12.5px;margin-top:6px;}
+
+  .footer-note{text-align:center;color:var(--muted);font-size:12px;margin-top:30px;padding-top:20px;border-top:1px solid var(--line);}
+</style>
+</head>
+<body>
+<div class="bg-fx"><div class="blob blob1"></div><div class="blob blob2"></div><div class="blob blob3"></div></div>
+
+<div class="wrap">
+  <header>
+    <a class="back-link" href="cotizalo.html" title="Volver a la app">←</a>
+    <div class="mark">?</div>
+    <div>
+      <h1>Ayuda de COTIZALO</h1>
+      <p>Todo lo que necesitas saber para usar la app</p>
+    </div>
+  </header>
+
+  <div class="search-box">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" id="searchInput" placeholder="Buscar en la ayuda... (ej: compra conjunta)">
+  </div>
+
+  <div class="toc" id="toc"></div>
+
+  <div id="topics"></div>
+
+  <div class="footer-note">COTIZALO — hecho por y para la comunidad. Si algo no te queda claro, pregúntale a quien te compartió la app.</div>
+</div>
+
+<script>
+const TOPICS = [
+  {
+    id: "que-es",
+    icon: "🏠",
+    title: "¿Qué es COTIZALO?",
+    html: `
+      <p>COTIZALO es un tablero de precios armado <b>entre todos</b>. Cualquier persona puede reportar dónde vio un producto y a qué precio, y la app ordena automáticamente esos reportes del más barato al más caro.</p>
+      <p>Nadie es dueño de los datos — entre más gente reporte y confirme precios, más confiable se vuelve el ranking para todos.</p>
+    `
+  },
+  {
+    id: "buscar-producto",
+    icon: "🔎",
+    title: "Buscar y elegir un producto",
+    html: `
+      <p>En la pantalla principal puedes:</p>
+      <ul>
+        <li>Escribir en la barra de búsqueda para filtrar por nombre.</li>
+        <li>Tocar una categoría (Alimentación, Tecnología, etc.) para ver solo esos productos.</li>
+        <li>Tocar cualquier tarjeta para entrar al detalle de ese producto.</li>
+      </ul>
+      <p>Cada tarjeta muestra "desde X" con el precio más barato reportado hasta ahora, si ya hay alguno.</p>
+    `
+  },
+  {
+    id: "reportar-precio",
+    icon: "💰",
+    title: "Reportar un precio",
+    html: `
+      <p>Dentro de un producto, en la pestaña <span class="pill gold">Precios individuales</span>, toca el botón <b>+</b> flotante.</p>
+      <ol>
+        <li>Elige o busca el <b>lugar</b> donde lo viste.</li>
+        <li>Escribe el <b>precio</b> y elige la moneda (CUP o USD).</li>
+        <li>Opcional: agrega una <b>foto</b> del precio o la etiqueta como evidencia — se optimiza sola, no tienes que preocuparte por el tamaño.</li>
+        <li>Toca "Añadir al ranking".</li>
+      </ol>
+      <p>La primera vez que reportas algo, la app te pide un <b>apodo</b> — así otros saben quién reportó cada precio y pueden confiar más en tus datos.</p>
+    `
+  },
+  {
+    id: "confirmar",
+    icon: "✔",
+    title: "Confirmar precios y marcar \"ya no está\"",
+    html: `
+      <p>Un precio reportado hace días puede ya no ser real. Por eso cada reporte tiene dos botones:</p>
+      <ul>
+        <li><span class="pill teal">✔ Sigue así</span> — confírmalo si viste el mismo precio recientemente. Cada confirmación suma a la confiabilidad del reporte.</li>
+        <li><b>Ya no está</b> — si el producto se agotó o el precio cambió, márcalo así. El reporte baja de la lista principal en vez de desaparecer, para que quede el historial.</li>
+      </ul>
+    `
+  },
+  {
+    id: "monedas",
+    icon: "💱",
+    title: "CUP, USD y la tasa de cambio",
+    html: `
+      <p>Los precios se pueden reportar en <b>CUP</b> o <b>USD</b>. Arriba de todo, en la pantalla principal, hay una casilla de <b>Cambio del día</b> donde cualquiera puede:</p>
+      <ul>
+        <li>Reportar cuánto está el dólar hoy (cuántos CUP equivalen a 1 USD).</li>
+        <li>Confirmar (✔) el reporte de otra persona si coincide con lo que tú ves.</li>
+      </ul>
+      <p>Con esa tasa, la app convierte automáticamente entre monedas para poder comparar y ordenar precios reportados en CUP junto con los reportados en USD.</p>
+      <div class="note">💡 Si nadie ha reportado la tasa todavía, la app te avisa — sé el primero en hacerlo.</div>
+    `
+  },
+  {
+    id: "compras-conjuntas",
+    icon: "🤝",
+    title: "Compras conjuntas (mayoristas)",
+    html: `
+      <p>Dentro de un producto, la pestaña <span class="pill violet">🤝 Compras conjuntas</span> sirve para juntar pedidos y conseguir un precio mayorista mejor que el individual.</p>
+      <p><b>Crear una:</b> toca el <b>+</b>, elige el lugar, el precio por unidad al comprar en volumen, y cuántas unidades hacen falta para llegar a ese precio.</p>
+      <p><b>Unirse a una:</b> toca "Unirme" e indica cuántas unidades quieres tú. Puedes salir después si cambias de idea.</p>
+      <p>Cuando entre todos los participantes se llega a la meta, aparece <b>"🎉 ¡Meta alcanzada!"</b> — esa es la señal de que ya se puede coordinar la compra real entre quienes se unieron.</p>
+      <div class="warn">⚠️ La app solo organiza quién quiere participar y cuánto. El pago y la entrega los coordinan ustedes directamente, fuera de la app.</div>
+    `
+  },
+  {
+    id: "estrellas",
+    icon: "⭐",
+    title: "Estrellas y reputación",
+    html: `
+      <p>Junto al apodo de quien reportó un precio, creó una compra conjunta o reportó la tasa de cambio, vas a ver una insignia como <span class="pill gold">⭐ 4</span>.</p>
+      <p>Puedes tocarla para <b>regalarle una estrella</b> a esa persona si confías en sus reportes. No puedes darte estrellas a ti mismo, ni repetir una estrella a la misma persona.</p>
+      <p>Al llegar a 3 estrellas, la insignia cambia de color y le agrega un <b>✓</b> — es el sello de "conocido" dentro de la comunidad.</p>
+    `
+  },
+  {
+    id: "mapa",
+    icon: "🗺️",
+    title: "Ver un lugar en el mapa",
+    html: `
+      <p>Junto al nombre de cada lugar vas a ver un ícono 🗺️. Al tocarlo se abre Google Maps con la ubicación exacta (si alguien ya la marcó) o con una búsqueda por el nombre del lugar.</p>
+    `
+  },
+  {
+    id: "catalogo",
+    icon: "⚙️",
+    title: "Editar el catálogo (productos y lugares)",
+    html: `
+      <p>Toca el ícono ⚙️ arriba a la derecha para abrir <b>"Gestionar catálogo"</b>. Ahí, cualquier persona puede:</p>
+      <ul>
+        <li>Añadir un producto o lugar nuevo (con nombre, categoría, y opcionalmente una foto).</li>
+        <li>Eliminar un producto o lugar existente.</li>
+        <li>Marcar la ubicación de un lugar usando tu posición GPS actual, si estás parado ahí.</li>
+      </ul>
+      <p>Las fotos se ajustan solas a un tamaño chico automáticamente — no necesitas hacer nada especial antes de subirlas.</p>
+    `
+  },
+  {
+    id: "admin",
+    icon: "🔑",
+    title: "Modo administrador",
+    html: `
+      <p>El ícono 🔑 arriba a la derecha abre el modo administrador. Si nadie lo ha activado antes, te deja <b>crear un PIN</b> compartido — cualquiera que lo conozca puede entrar como administrador.</p>
+      <p>Un administrador puede eliminar reportes, compras conjuntas o reportes de tasa de cambio que no sean suyos, exportar toda la base de datos como respaldo, e importar un respaldo anterior.</p>
+      <div class="note">💡 Si tu comunidad tiene una persona responsable del grupo, esa suele ser la indicada para tener el PIN.</div>
+    `
+  },
+  {
+    id: "privacidad",
+    icon: "🔒",
+    title: "¿Mis datos son públicos?",
+    html: `
+      <p>Todo lo que reportas (precios, fotos, apodo) lo puede ver cualquier persona que use esta misma app — es un tablero compartido, no privado.</p>
+      <p>Tu apodo se guarda solo en tu dispositivo/navegador, así que si abres la app desde otro teléfono o borras los datos del navegador, te la va a volver a pedir.</p>
+      <p>No hace falta un correo, contraseña, ni ningún dato personal real — el apodo puede ser lo que tú quieras.</p>
+    `
+  },
+];
+
+function render(filter){
+  const f = (filter||"").toLowerCase().trim();
+  const list = TOPICS.filter(t =>
+    !f || t.title.toLowerCase().includes(f) || t.html.toLowerCase().includes(f)
+  );
+
+  document.getElementById('toc').innerHTML = TOPICS.map(t =>
+    `<a href="#${t.id}">${t.icon} ${t.title}</a>`
+  ).join("");
+
+  const container = document.getElementById('topics');
+  container.innerHTML = list.map(t => `
+    <div class="topic" id="${t.id}">
+      <div class="topic-head" data-toggle="${t.id}">
+        <div class="topic-icon">${t.icon}</div>
+        <h2>${t.title}</h2>
+        <div class="chevron">▾</div>
+      </div>
+      <div class="topic-body"><div class="topic-body-inner">${t.html}</div></div>
+    </div>
+  `).join("") || `<div style="text-align:center;color:var(--muted);padding:40px 10px;">Sin resultados para "${filter}"</div>`;
+
+  container.querySelectorAll('[data-toggle]').forEach(head=>{
+    head.addEventListener('click', ()=>{
+      head.closest('.topic').classList.toggle('open');
+    });
+  });
+}
+
+document.getElementById('searchInput').addEventListener('input', (e)=> render(e.target.value));
+
+// si se entra con un #ancla (ej. desde el enlace de la app), abre ese tema directamente
+render("");
+if(location.hash){
+  const el = document.querySelector(location.hash);
+  if(el){ el.classList.add('open'); el.scrollIntoView({behavior:'smooth', block:'start'}); }
+}
+</script>
+</body>
+</html>
