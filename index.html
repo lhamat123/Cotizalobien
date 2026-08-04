@@ -631,6 +631,39 @@
 </script>
 
 <script>
+/* ============================================================================
+   COTIZALO — mapa del archivo (léase antes de editar)
+   ============================================================================
+   BACKEND: todo el dato compartido vive en Telegram (ver bloque de config
+   arriba). fullDB{} en memoria = todo el JSON adjunto al mensaje fijado.
+   loadShared(key, fallback) / saveShared(key, value) son la única puerta
+   de entrada/salida a los datos — todo lo demás pasa por ahí.
+
+   DATOS PERSONALES (apodo, sesión de admin): SOLO localStorage, no viajan
+   a Telegram. Claves: 'cotizalo_alias', 'cotizalo_is_admin'.
+
+   SECCIONES (buscar con Ctrl+F el texto entre ----------):
+     DATOS BASE Y ESTADO GLOBAL   → productos/lugares por defecto, state{}
+     PARTÍCULAS DE FONDO          → decorativo, sin lógica de negocio
+     TELEGRAM COMO BASE DE DATOS  → loadShared/saveShared y todo lo derivado
+     REPUTACIÓN                  → sistema de estrellas entre alias
+     ADMINISTRADOR               → PIN, exportar/importar, herramientas admin
+     CURRENCY / EXCHANGE         → CUP/USD y tasa de cambio del día
+     IMAGE COMPRESSION           → recorte 200x200 + compresión <10KB
+     STAT CACHES                 → cache en memoria para la cuadrícula
+     GRID                        → pantalla principal (lista de productos)
+     LADDER / PRODUCT VIEW       → detalle de producto + ranking de precios
+     GROUP BUYS                  → compras conjuntas
+     ADD PRICE REPORT SHEET      → formulario de reportar precio
+     MANAGE CATALOG SHEET        → añadir/eliminar productos y lugares
+     NAV / INIT                  → arranque de la app
+
+   SI ALGO SE ROMPE: abre la consola del navegador (F12) — casi todos los
+   fallos de red están capturados en try/catch y muestran un toast, así
+   que un error real aquí casi siempre es un bug de lógica, no de conexión.
+   ============================================================================ */
+
+/* ---------- DATOS BASE Y ESTADO GLOBAL ---------- */
 const DEFAULT_PRODUCTS = [
   {id:"leche", name:"Leche entera 1L", cat:"Alimentación", icon:"🥛"},
   {id:"aceite-oliva", name:"Aceite de oliva 1L", cat:"Alimentación", icon:"🫒"},
@@ -727,6 +760,7 @@ const main = $("#main");
 const fab = $("#fabAdd");
 const backBtn = $("#backBtn");
 
+/* ---------- UTILIDADES GENERALES ---------- */
 function genId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 
 function mapsUrl(loc){
