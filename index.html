@@ -811,6 +811,7 @@ function launchConfetti(count){
 // a subir entero cada vez que algo cambia.
 let fullDB = {};
 let dbLoaded = false;
+let dbLoadFailed = false; // true = la última lectura falló (red/config), no confundir con "base vacía"
 
 async function fetchPinnedFileId(){
   const res = await fetch(`${TG_API}/getChat?chat_id=${encodeURIComponent(TELEGRAM_CHAT_ID)}`);
@@ -831,10 +832,11 @@ async function loadFullDB(){
   try{
     const fileId = await fetchPinnedFileId();
     fullDB = await downloadJSONFile(fileId);
+    dbLoadFailed = false;
   }catch(e){
     console.error(e);
-    fullDB = {};
-    showToast("No se pudo cargar la base de datos de Telegram. Revisa la configuración.");
+    dbLoadFailed = true; // OJO: no tocamos fullDB aquí — así no perdemos lo ya cargado en memoria
+    showToast("No se pudo cargar la base de datos de Telegram. Revisa tu conexión.");
   }
   dbLoaded = true;
 }
@@ -860,11 +862,19 @@ async function loadShared(key, fallback){
 }
 async function saveShared(key, value){
   // Vuelve a leer lo último antes de escribir, para reducir choques si dos
-  // personas guardan casi al mismo tiempo (no es una garantía perfecta).
+  // personas guardan casi al mismo tiempo. Si esa relectura falla, ABORTAMOS
+  // el guardado en vez de escribir con una copia local que podría estar
+  // vieja o incompleta — así nunca se sobrescribe la base real por accidente.
+  let fresh;
   try{
     const fileId = await fetchPinnedFileId();
-    fullDB = await downloadJSONFile(fileId);
-  }catch(e){ /* si falla, sigue con la copia local que ya tenemos */ }
+    fresh = await downloadJSONFile(fileId);
+  }catch(e){
+    console.error(e);
+    showToast("No se pudo guardar: no se pudo confirmar la base de datos más reciente. Intenta de nuevo.");
+    return;
+  }
+  fullDB = fresh;
   fullDB[key] = value;
   await saveFullDB();
 }
@@ -874,6 +884,15 @@ async function getGroupBuys(productId){ return await loadShared('groupbuys:'+pro
 async function saveGroupBuys(productId, gbs){ await saveShared('groupbuys:'+productId, gbs); }
 
 async function initCatalog(){
+  // Si la última carga falló (red/config), NUNCA sembramos el catálogo por
+  // defecto encima de lo que ya exista de verdad en Telegram — eso era
+  // justo el bug: un tropiezo de red hacía parecer que la base estaba
+  // vacía y la re-creaba, borrando lo que la comunidad ya había cargado.
+  if(dbLoadFailed){
+    if(!PRODUCTS || !PRODUCTS.length) PRODUCTS = [];
+    if(!LOCATIONS || !LOCATIONS.length) LOCATIONS = [];
+    return;
+  }
   PRODUCTS = await loadShared('app:products', null);
   if(!PRODUCTS){ PRODUCTS = DEFAULT_PRODUCTS.slice(); await saveShared('app:products', PRODUCTS); }
   LOCATIONS = await loadShared('app:locations', null);
@@ -1968,9 +1987,13 @@ backBtn.addEventListener("click", ()=>{ state.view="grid"; state.selectedProduct
 $("#brandHome").addEventListener("click", ()=>{ state.view="grid"; state.selectedProduct=null; state.search=""; renderGrid(); });
 
 /* ---------- INIT ---------- */
-(async function init(){
+async function bootApp(){
   main.innerHTML = `<div class="empty-state"><div class="big">💱</div><h3>Conectando con Telegram...</h3><p>Un momento, cargando el catálogo compartido.</p></div>`;
   await loadFullDB();
+  if(dbLoadFailed){
+    renderConnectionError();
+    return;
+  }
   await initCatalog();
   await loadExchange();
   await loadReputation();
@@ -1978,7 +2001,20 @@ $("#brandHome").addEventListener("click", ()=>{ state.view="grid"; state.selecte
   state.isAdmin = localStorage.getItem('cotizalo_is_admin') === '1';
   updateAdminButtonUI();
   renderGrid();
-})();
+}
+function renderConnectionError(){
+  backBtn.style.display = "none";
+  fab.style.display = "none";
+  main.innerHTML = `
+    <div class="empty-state">
+      <div class="big">📡</div>
+      <h3>No se pudo conectar con la base de datos</h3>
+      <p>Revisa tu conexión a internet. Si el problema sigue, puede ser la configuración de Telegram en este archivo (token, Chat ID o Message ID).</p>
+      <button class="fab primary-empty" id="retryConnBtn" style="width:auto;height:auto;padding:14px 26px;border-radius:14px;font-size:14px;font-weight:700;">🔄 Reintentar</button>
+    </div>`;
+  $("#retryConnBtn").addEventListener("click", bootApp);
+}
+bootApp();
 </script>
 </body>
 </html>
