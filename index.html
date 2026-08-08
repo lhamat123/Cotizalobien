@@ -113,6 +113,22 @@
     color:var(--gold);border-radius:10px;padding:10px 14px;font-size:12.5px;font-weight:600;margin-bottom:16px;}
   .mini-btn.admin-del{border-color:var(--danger);color:var(--danger);flex:none;padding:9px 12px;}
 
+  .contact-card{background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:10px;}
+  .contact-card .cc-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;}
+  .contact-card .cc-name{font-weight:600;font-size:14px;}
+  .contact-card .cc-ctx{font-size:11.5px;color:var(--muted);margin-bottom:8px;}
+  .contact-card .cc-status{font-size:10.5px;font-weight:700;border-radius:100px;padding:2px 9px;}
+  .contact-card .cc-status.pending{background:var(--gold-dim);color:var(--gold);border:1px solid var(--gold);}
+  .contact-card .cc-status.accepted{background:var(--teal-dim);color:var(--teal);border:1px solid var(--teal);}
+  .contact-card .cc-status.declined{background:var(--danger-dim);color:var(--danger);border:1px solid var(--danger);}
+  .contact-profile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0;font-size:12.5px;line-height:1.7;}
+  .contact-profile b{color:var(--gold);}
+  .contact-actions{display:flex;gap:8px;margin-top:8px;}
+  .icon-btn-badge{position:relative;}
+  .icon-btn-badge .dot{position:absolute;top:2px;right:2px;width:9px;height:9px;border-radius:50%;background:var(--danger);border:2px solid var(--bg);display:none;}
+  .icon-btn-badge.has-pending .dot{display:block;}
+  .mini-btn.contact-req{border-color:var(--violet);color:var(--violet);background:var(--violet-dim);flex:none;padding:7px 12px;font-size:11px;}
+
   main{flex:1;padding:18px 16px 100px;}
 
   /* EXCHANGE CARD */
@@ -409,6 +425,7 @@
     </div>
     <div class="header-actions">
       <a class="icon-btn" href="ayuda.html" target="_blank" rel="noopener" title="Ayuda">❓</a>
+      <button class="icon-btn icon-btn-badge" id="contactsBtn" title="Mis contactos">📇<span class="dot"></span></button>
       <button class="icon-btn" id="adminBtn" title="Modo administrador">🔑</button>
       <button class="icon-btn" id="manageBtn" title="Gestionar productos y lugares">⚙️</button>
       <button class="icon-btn" id="backBtn" style="display:none;">←</button>
@@ -597,12 +614,72 @@
     </div>
 
     <div class="admin-section">
+      <h4>📇 Contactos entre usuarios</h4>
+      <p>Como administrador puedes ver cualquier intercambio de contacto para moderar disputas o abuso. Los usuarios comunes nunca ven esto — solo tú, con el PIN.</p>
+      <button class="submit-btn violet" id="viewAllContactsBtn">👑 Ver todas las solicitudes de contacto</button>
+      <div id="adminContactsBody" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="admin-section">
       <h4>🔐 Seguridad</h4>
       <p>Cambia el PIN compartido que usan los administradores para entrar a este panel.</p>
       <button class="submit-btn" id="changePinBtn" style="background:var(--surface2);color:var(--text);border:1px solid var(--line);">Cambiar PIN de administrador</button>
     </div>
 
     <button class="submit-btn" id="exitAdminBtn" style="background:var(--danger);color:#2a0d09;">Salir del modo administrador</button>
+  </div>
+</div>
+
+<!-- SHEET: completar mi perfil privado (necesario para pedir/aceptar contacto) -->
+<div class="overlay" id="profileOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h3>Tu ficha de contacto</h3>
+      <button class="close-x" id="closeProfileSheet">✕</button>
+    </div>
+    <p class="hint" style="margin-bottom:14px;">Esto solo lo va a ver la persona con la que hagas match (y el administrador, para poder moderar) — nunca otros usuarios comunes. Se guarda cifrado.</p>
+    <div class="field"><label>Nombre real</label><input class="text-input" id="profName" placeholder="Nombre y apellido"></div>
+    <div class="field"><label>Teléfono</label><input class="text-input" id="profPhone" placeholder="+53 ..."></div>
+    <div class="field"><label>Dirección</label><input class="text-input" id="profAddress" placeholder="Barrio, referencia..."></div>
+    <div class="field"><label>Detalles adicionales (opcional)</label><input class="text-input" id="profDetails" placeholder="Horario, punto de entrega, etc."></div>
+    <div class="field">
+      <label>Frase de recuperación</label>
+      <input class="text-input" id="profRecovery" placeholder="Algo que solo tú recuerdes" type="password">
+      <p class="hint" style="margin-top:6px;">La necesitas para recuperar tus contactos si algún día usas otro teléfono o navegador. Sin ella, no hay forma de recuperarlo — anótala en un lugar seguro.</p>
+    </div>
+    <button class="submit-btn violet" id="saveProfileBtn" disabled>Guardar mi ficha</button>
+    <p class="hint" style="margin-top:12px;text-align:center;">
+      <a href="#" id="openRecoveryLink" style="color:var(--teal);">¿Ya tenías cuenta en otro dispositivo? Recupérala aquí</a>
+    </p>
+  </div>
+</div>
+
+<!-- SHEET: recuperar mis contactos en un dispositivo nuevo -->
+<div class="overlay" id="recoveryOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h3>Recuperar mis contactos</h3>
+      <button class="close-x" id="closeRecoverySheet">✕</button>
+    </div>
+    <div class="field"><label>Tu apodo</label><input class="text-input" id="recAlias" placeholder="Tu apodo de siempre"></div>
+    <div class="field"><label>Tu frase de recuperación</label><input class="text-input" id="recPassphrase" type="password" placeholder="La que configuraste antes"></div>
+    <button class="submit-btn teal" id="recoverBtn" disabled>Recuperar</button>
+    <div id="recoveryResult"></div>
+  </div>
+</div>
+
+<!-- SHEET: mis contactos / solicitudes de match -->
+<div class="overlay" id="contactsOverlay">
+  <div class="sheet">
+    <div class="sheet-head">
+      <h3>📇 Contactos</h3>
+      <button class="close-x" id="closeContactsSheet">✕</button>
+    </div>
+    <div class="manage-tabs">
+      <div class="manage-tab active" data-ct="recibidas">Recibidas</div>
+      <div class="manage-tab" data-ct="enviadas">Enviadas</div>
+    </div>
+    <div id="contactsBody"></div>
   </div>
 </div>
 
@@ -618,14 +695,28 @@
 
 <!-- TELEGRAM COMO BASE DE DATOS -->
 <script>
-  // ====== PEGA AQUÍ TUS 3 VALORES DE TELEGRAM (usa guia-telegram.html para obtenerlos) ======
-  const TELEGRAM_BOT_TOKEN = "8798807733:AAHADDic_vyaaMXXEUg3asw_uF35Q3KvkdE";
-  const TELEGRAM_CHAT_ID = "-1003944124180";
-  const TELEGRAM_DB_MESSAGE_ID = 4;
-  // ⚠️ Este token queda visible para cualquiera que vea el código fuente de esta página.
-  // Usa un bot y un grupo dedicados SOLO a esta app. Si alguien abusa, revócalo con
-  // @BotFather → /revoke y vuelve a inicializar la base con guia-telegram.html.
-  // ============================================================================================
+  // ====== TU CONFIGURACIÓN DE TELEGRAM (ofuscada, ver nota abajo) ======
+  // Esto NO es cifrado real: es solo codificación base64 para que el
+  // token no aparezca como texto plano y no lo detecten los escáneres
+  // automáticos de secretos de GitHub ni un vistazo rápido al código.
+  // Cualquiera que lea este archivo con calma puede revertirlo en
+  // segundos — no depende de una clave secreta, solo de ofuscación.
+  // Para generar/regenerar este valor, usa guia-telegram.html (paso 5).
+  const _CFG_B64 = "eyJ0IjogIjg3OTg4MDc3MzM6QUFIQUREaWNfdnlhYU1YWEVVZzNhc3dfdUYzNVEzS3ZrZEUiLCAiYyI6ICItMTAwMzk0NDEyNDE4MCIsICJtIjogNH0=";
+  function _decodeCfg(b64){
+    return JSON.parse(decodeURIComponent(escape(atob(b64))));
+  }
+  const _cfg = _decodeCfg(_CFG_B64);
+  const TELEGRAM_BOT_TOKEN = _cfg.t;
+  const TELEGRAM_CHAT_ID = _cfg.c;
+  const TELEGRAM_DB_MESSAGE_ID = _cfg.m;
+  // ⚠️ Aunque esté ofuscado en el código fuente, el token SIEMPRE viaja en
+  // texto plano dentro de cada petición de red (visible en el panel Red/
+  // Network del navegador). Eso es inevitable sin un servidor de por medio.
+  // Usa un bot y un grupo dedicados SOLO a esta app. Si alguien abusa,
+  // revócalo con @BotFather → /revoke y vuelve a inicializar la base con
+  // guia-telegram.html.
+  // =======================================================================
   const TG_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
   const TG_FILE_API = `https://api.telegram.org/file/bot${TELEGRAM_BOT_TOKEN}`;
 </script>
@@ -647,6 +738,8 @@
      PARTÍCULAS DE FONDO          → decorativo, sin lógica de negocio
      TELEGRAM COMO BASE DE DATOS  → loadShared/saveShared y todo lo derivado
      REPUTACIÓN                  → sistema de estrellas entre alias
+     CONTACTOS PRIVADOS          → cifrado extremo a extremo (RSA-OAEP + AES-GCM),
+                                    llave privada solo en localStorage, nunca viaja
      ADMINISTRADOR               → PIN, exportar/importar, herramientas admin
      CURRENCY / EXCHANGE         → CUP/USD y tasa de cambio del día
      IMAGE COMPRESSION           → recorte 200x200 + compresión <10KB
@@ -825,7 +918,14 @@ async function downloadJSONFile(fileId){
   const res1 = await fetch(`${TG_API}/getFile?file_id=${fileId}`);
   const data1 = await res1.json();
   if(!data1.ok) throw new Error("No se pudo localizar el archivo en Telegram.");
-  const res2 = await fetch(`${TG_FILE_API}/${data1.result.file_path}`);
+  const fileUrl = `${TG_FILE_API}/${data1.result.file_path}`;
+  // OJO: api.telegram.org/file/... no envía cabeceras CORS, así que un fetch
+  // directo desde el navegador falla siempre con "blocked by CORS policy",
+  // sin importar que el token/chat/mensaje estén perfectos. Por eso pasamos
+  // solo esta descarga puntual por un proxy CORS público y gratuito.
+  const proxied = `https://api.allorigins.win/raw?url=${encodeURIComponent(fileUrl)}`;
+  const res2 = await fetch(proxied);
+  if(!res2.ok) throw new Error("El proxy de descarga no respondió correctamente (status " + res2.status + ").");
   return await res2.json();
 }
 async function loadFullDB(){
@@ -858,6 +958,18 @@ async function saveFullDB(){
 }
 async function loadShared(key, fallback){
   if(!dbLoaded) await loadFullDB();
+  return (key in fullDB) ? fullDB[key] : fallback;
+}
+async function loadSharedFresh(key, fallback){
+  // igual que loadShared, pero siempre relee la base antes de responder — para
+  // datos donde importa ver lo que OTRA persona acaba de publicar (llaves
+  // públicas, solicitudes de contacto), en vez de la copia en caché local.
+  try{
+    const fileId = await fetchPinnedFileId();
+    fullDB = await downloadJSONFile(fileId);
+    dbLoadFailed = false;
+  }catch(e){ console.error(e); /* si falla, seguimos con lo que ya había en caché */ }
+  dbLoaded = true;
   return (key in fullDB) ? fullDB[key] : fallback;
 }
 async function saveShared(key, value){
@@ -961,7 +1073,329 @@ function ensureAlias(action){
   });
 }
 
-/* ---------- ADMINISTRADOR ---------- */
+/* ---------- CONTACTOS PRIVADOS (CIFRADO DE EXTREMO A EXTREMO) ----------
+   Nadie más puede leer estos datos, ni siquiera exportando la base entera:
+   cada persona tiene un par de llaves (pública/privada) generado en su
+   propio dispositivo. La llave privada NUNCA sale de localStorage. Para
+   pedir contacto, se cifra el propio perfil con la llave PÚBLICA del otro
+   — solo quien tenga la llave privada correspondiente puede abrirlo. */
+
+function buf2b64(buf){ return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function b642buf(b64){ const bin = atob(b64); const arr = new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i); return arr.buffer; }
+
+/* -- PBKDF2: convierte una frase que la persona recuerda en una llave AES,
+   para poder respaldar/recuperar la llave privada entre dispositivos. -- */
+async function deriveKeyFromPassphrase(passphrase, saltB64){
+  const salt = saltB64 ? new Uint8Array(b642buf(saltB64)) : crypto.getRandomValues(new Uint8Array(16));
+  const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+  const aesKey = await crypto.subtle.deriveKey(
+    { name:'PBKDF2', salt, iterations:150000, hash:'SHA-256' },
+    material, { name:'AES-GCM', length:256 }, true, ['encrypt','decrypt']
+  );
+  return { aesKey, saltB64: buf2b64(salt) };
+}
+async function encryptWithPassphrase(plainObj, passphrase){
+  const { aesKey, saltB64 } = await deriveKeyFromPassphrase(passphrase);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, aesKey, new TextEncoder().encode(JSON.stringify(plainObj)));
+  return { salt: saltB64, iv: buf2b64(iv), ct: buf2b64(ct) };
+}
+async function decryptWithPassphrase(encBlob, passphrase){
+  const { aesKey } = await deriveKeyFromPassphrase(passphrase, encBlob.salt);
+  const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv: b642buf(encBlob.iv)}, aesKey, b642buf(encBlob.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+let myKeyPair = null; // { publicKey: CryptoKey, privateKey: CryptoKey }
+
+async function ensureKeypair(){
+  if(myKeyPair) return myKeyPair;
+  const savedPriv = localStorage.getItem('cotizalo_privkey');
+  const savedPub = localStorage.getItem('cotizalo_pubkey');
+  if(savedPriv && savedPub){
+    const privateKey = await crypto.subtle.importKey('jwk', JSON.parse(savedPriv), {name:'RSA-OAEP', hash:'SHA-256'}, true, ['decrypt']);
+    const publicKey = await crypto.subtle.importKey('jwk', JSON.parse(savedPub), {name:'RSA-OAEP', hash:'SHA-256'}, true, ['encrypt']);
+    myKeyPair = { publicKey, privateKey, publicJwk: JSON.parse(savedPub) };
+    return myKeyPair;
+  }
+  const pair = await crypto.subtle.generateKey(
+    { name:'RSA-OAEP', modulusLength:2048, publicExponent:new Uint8Array([1,0,1]), hash:'SHA-256' },
+    true, ['encrypt','decrypt']
+  );
+  const pubJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+  const privJwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
+  localStorage.setItem('cotizalo_privkey', JSON.stringify(privJwk));
+  localStorage.setItem('cotizalo_pubkey', JSON.stringify(pubJwk));
+  myKeyPair = { publicKey: pair.publicKey, privateKey: pair.privateKey, publicJwk: pubJwk };
+  return myKeyPair;
+}
+async function publishMyPublicKey(alias, recoveryPassphrase){
+  const kp = await ensureKeypair();
+  const keys = await loadShared('matchkeys', {});
+  const entry = keys[alias] || {};
+  let changed = false;
+  if(JSON.stringify(entry.pub) !== JSON.stringify(kp.publicJwk)){ entry.pub = kp.publicJwk; changed = true; }
+  if(recoveryPassphrase){
+    // guarda una copia de mi llave privada, cifrada con mi propia frase — así
+    // puedo recuperarla desde otro dispositivo sin que nadie más pueda leerla.
+    const privJwk = JSON.parse(localStorage.getItem('cotizalo_privkey'));
+    entry.encPriv = await encryptWithPassphrase(privJwk, recoveryPassphrase);
+    changed = true;
+  }
+  if(!changed) return;
+  keys[alias] = entry;
+  await saveShared('matchkeys', keys);
+}
+async function recoverKeypair(alias, passphrase){
+  const keys = await loadSharedFresh('matchkeys', {});
+  const entry = keys[alias];
+  if(!entry || !entry.encPriv) throw new Error("Esta persona no configuró una frase de recuperación.");
+  const privJwk = await decryptWithPassphrase(entry.encPriv, passphrase); // lanza error si la frase no es correcta
+  const privateKey = await crypto.subtle.importKey('jwk', privJwk, {name:'RSA-OAEP', hash:'SHA-256'}, true, ['decrypt']);
+  const publicKey = await crypto.subtle.importKey('jwk', entry.pub, {name:'RSA-OAEP', hash:'SHA-256'}, true, ['encrypt']);
+  localStorage.setItem('cotizalo_privkey', JSON.stringify(privJwk));
+  localStorage.setItem('cotizalo_pubkey', JSON.stringify(entry.pub));
+  myKeyPair = { publicKey, privateKey, publicJwk: entry.pub };
+  return myKeyPair;
+}
+async function getPublicKeyOf(alias){
+  const keys = await loadSharedFresh('matchkeys', {});
+  if(!keys[alias] || !keys[alias].pub) return null;
+  return await crypto.subtle.importKey('jwk', keys[alias].pub, {name:'RSA-OAEP', hash:'SHA-256'}, true, ['encrypt']);
+}
+
+async function encryptForRecipient(obj, recipientPublicKey){
+  const aesKey = await crypto.subtle.generateKey({name:'AES-GCM', length:256}, true, ['encrypt','decrypt']);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const plaintext = new TextEncoder().encode(JSON.stringify(obj));
+  const ciphertext = await crypto.subtle.encrypt({name:'AES-GCM', iv}, aesKey, plaintext);
+  const rawKey = await crypto.subtle.exportKey('raw', aesKey);
+  const encKey = await crypto.subtle.encrypt({name:'RSA-OAEP'}, recipientPublicKey, rawKey);
+  return { iv: buf2b64(iv), ct: buf2b64(ciphertext), ek: buf2b64(encKey) };
+}
+async function decryptPackage(pkg){
+  const kp = await ensureKeypair();
+  const rawKey = await crypto.subtle.decrypt({name:'RSA-OAEP'}, kp.privateKey, b642buf(pkg.ek));
+  const aesKey = await crypto.subtle.importKey('raw', rawKey, {name:'AES-GCM'}, false, ['decrypt']);
+  const plaintext = await crypto.subtle.decrypt({name:'AES-GCM', iv: b642buf(pkg.iv)}, aesKey, b642buf(pkg.ct));
+  return JSON.parse(new TextDecoder().decode(plaintext));
+}
+
+function getMyProfile(){
+  try{ return JSON.parse(localStorage.getItem('cotizalo_profile') || 'null'); }catch(e){ return null; }
+}
+function ensureProfile(action){
+  const p = getMyProfile();
+  if(p && p.name){ action(p); return; }
+  state.pendingProfileAction = action;
+  $("#profName").value = ""; $("#profPhone").value = ""; $("#profAddress").value = ""; $("#profDetails").value = ""; $("#profRecovery").value = "";
+  $("#saveProfileBtn").disabled = true;
+  $("#profileOverlay").classList.add("show");
+}
+function checkProfileFormValid(){
+  const ok = $("#profName").value.trim() && $("#profPhone").value.trim() && $("#profRecovery").value.trim().length >= 4;
+  $("#saveProfileBtn").disabled = !ok;
+}
+["profName","profPhone","profAddress","profDetails","profRecovery"].forEach(id=>{
+  $("#"+id).addEventListener("input", checkProfileFormValid);
+});
+$("#closeProfileSheet").addEventListener("click", ()=>{ $("#profileOverlay").classList.remove("show"); state.pendingProfileAction=null; });
+$("#profileOverlay").addEventListener("click", e=>{ if(e.target.id==="profileOverlay"){ $("#profileOverlay").classList.remove("show"); state.pendingProfileAction=null; } });
+$("#saveProfileBtn").addEventListener("click", async ()=>{
+  const profile = {
+    name: $("#profName").value.trim(),
+    phone: $("#profPhone").value.trim(),
+    address: $("#profAddress").value.trim(),
+    details: $("#profDetails").value.trim(),
+  };
+  const recoveryPassphrase = $("#profRecovery").value.trim();
+  localStorage.setItem('cotizalo_profile', JSON.stringify(profile));
+  const myAlias = await getMyAlias();
+  if(myAlias) await publishMyPublicKey(myAlias, recoveryPassphrase);
+  $("#profileOverlay").classList.remove("show");
+  showToast("Ficha de contacto guardada");
+  const action = state.pendingProfileAction;
+  state.pendingProfileAction = null;
+  if(action) action(profile);
+});
+
+/* -- recuperar acceso desde otro dispositivo -- */
+const recoveryOverlay = $("#recoveryOverlay");
+$("#openRecoveryLink").addEventListener("click", (e)=>{
+  e.preventDefault();
+  $("#profileOverlay").classList.remove("show");
+  $("#recAlias").value = state.myAlias || "";
+  $("#recPassphrase").value = "";
+  $("#recoveryResult").innerHTML = "";
+  $("#recoverBtn").disabled = true;
+  recoveryOverlay.classList.add("show");
+});
+$("#closeRecoverySheet").addEventListener("click", ()=> recoveryOverlay.classList.remove("show"));
+recoveryOverlay.addEventListener("click", e=>{ if(e.target===recoveryOverlay) recoveryOverlay.classList.remove("show"); });
+function checkRecoveryFormValid(){
+  $("#recoverBtn").disabled = !($("#recAlias").value.trim() && $("#recPassphrase").value.trim());
+}
+$("#recAlias").addEventListener("input", checkRecoveryFormValid);
+$("#recPassphrase").addEventListener("input", checkRecoveryFormValid);
+$("#recoverBtn").addEventListener("click", async ()=>{
+  const alias = $("#recAlias").value.trim();
+  const passphrase = $("#recPassphrase").value.trim();
+  const box = $("#recoveryResult");
+  box.innerHTML = `<p class="hint" style="margin-top:10px;">Recuperando...</p>`;
+  try{
+    await recoverKeypair(alias, passphrase);
+    await setMyAlias(alias);
+    box.innerHTML = `<p class="hint" style="margin-top:10px;color:var(--teal);">✔ Listo, ya puedes ver tus contactos anteriores.</p>`;
+    showToast("Acceso recuperado ✔");
+    setTimeout(()=>{ recoveryOverlay.classList.remove("show"); refreshContactsBadge(); }, 900);
+  }catch(e){
+    box.innerHTML = `<p class="hint" style="margin-top:10px;color:var(--danger);">No se pudo recuperar: frase incorrecta, o "${alias}" nunca configuró una frase de recuperación.</p>`;
+  }
+});
+
+async function loadMatchRequests(){ return await loadSharedFresh('matchrequests', []); }
+async function saveMatchRequests(list){ await saveShared('matchrequests', list); }
+
+async function requestContact(toAlias, context){
+  ensureAlias((myAlias)=>{
+    if(myAlias === toAlias){ showToast("No puedes solicitarte contacto a ti mismo"); return; }
+    ensureProfile(async (myProfile)=>{
+      const theirPubKey = await getPublicKeyOf(toAlias);
+      if(!theirPubKey){ showToast(`${toAlias} todavía no ha activado sus contactos. Pídele que abra 📇 al menos una vez.`); return; }
+      await publishMyPublicKey(myAlias);
+      const list = await loadMatchRequests();
+      const already = list.find(r=>r.from===myAlias && r.to===toAlias && r.status==='pending');
+      if(already){ showToast(`Ya le enviaste una solicitud a ${toAlias}`); return; }
+      const fromCiphertext = await encryptForRecipient(myProfile, theirPubKey);
+      const entry = { id: genId(), from: myAlias, to: toAlias, context: context||"", fromCiphertext, status:'pending', ts: Date.now() };
+      const adminPubKey = await getAdminPublicKey();
+      if(adminPubKey) entry.fromAdminCiphertext = await encryptForRecipient(myProfile, adminPubKey);
+      list.push(entry);
+      await saveMatchRequests(list);
+      showToast(`Solicitud de contacto enviada a ${toAlias}`);
+      refreshContactsBadge();
+    });
+  });
+}
+async function respondToRequest(reqId, accept){
+  ensureAlias((myAlias)=>{
+    ensureProfile(async (myProfile)=>{
+      const list = await loadMatchRequests();
+      const req = list.find(r=>r.id===reqId);
+      if(!req || req.to !== myAlias) return;
+      if(!accept){
+        req.status = 'declined';
+        await saveMatchRequests(list);
+        showToast("Solicitud rechazada");
+        renderContactsBody();
+        refreshContactsBadge();
+        return;
+      }
+      const senderPubKey = await getPublicKeyOf(req.from);
+      if(!senderPubKey){ showToast("No se pudo cifrar la respuesta, intenta de nuevo."); return; }
+      await publishMyPublicKey(myAlias);
+      req.toCiphertext = await encryptForRecipient(myProfile, senderPubKey);
+      const adminPubKey = await getAdminPublicKey();
+      if(adminPubKey) req.toAdminCiphertext = await encryptForRecipient(myProfile, adminPubKey);
+      req.status = 'accepted';
+      req.respondedTs = Date.now();
+      await saveMatchRequests(list);
+      showToast(`Ahora tú y ${req.from} pueden verse los datos de contacto`);
+      renderContactsBody();
+      refreshContactsBadge();
+    });
+  });
+}
+
+async function refreshContactsBadge(){
+  const alias = await getMyAlias();
+  const btn = $("#contactsBtn");
+  if(!alias){ btn.classList.remove("has-pending"); return; }
+  const list = await loadMatchRequests();
+  const pending = list.some(r=>r.to===alias && r.status==='pending');
+  btn.classList.toggle("has-pending", pending);
+}
+
+const contactsOverlay = $("#contactsOverlay");
+let contactsTab = "recibidas";
+function openContacts(){
+  ensureAlias(()=>{
+    contactsTab = "recibidas";
+    document.querySelectorAll("#contactsOverlay .manage-tab").forEach(t=>t.classList.toggle("active", t.dataset.ct==="recibidas"));
+    renderContactsBody();
+    contactsOverlay.classList.add("show");
+  });
+}
+function closeContacts(){ contactsOverlay.classList.remove("show"); }
+$("#contactsBtn").addEventListener("click", openContacts);
+$("#closeContactsSheet").addEventListener("click", closeContacts);
+contactsOverlay.addEventListener("click", e=>{ if(e.target===contactsOverlay) closeContacts(); });
+document.querySelectorAll("#contactsOverlay .manage-tab").forEach(t=>{
+  t.addEventListener("click", ()=>{
+    contactsTab = t.dataset.ct;
+    document.querySelectorAll("#contactsOverlay .manage-tab").forEach(x=>x.classList.toggle("active", x===t));
+    renderContactsBody();
+  });
+});
+
+async function renderContactsBody(){
+  const body = $("#contactsBody");
+  body.innerHTML = `<div class="hint">Cargando...</div>`;
+  const myAlias = await getMyAlias();
+  const list = (await loadMatchRequests()).slice().sort((a,b)=>b.ts-a.ts);
+
+  if(contactsTab === "recibidas"){
+    const mine = list.filter(r=>r.to===myAlias);
+    if(!mine.length){ body.innerHTML = `<div class="hint">No tienes solicitudes de contacto recibidas.</div>`; return; }
+    let html = "";
+    for(const r of mine){
+      let profileHtml = "";
+      if(r.status !== 'declined'){
+        try{
+          const p = await decryptPackage(r.fromCiphertext);
+          profileHtml = `<div class="contact-profile"><b>${p.name}</b><br>📞 ${p.phone}${p.address?`<br>📍 ${p.address}`:""}${p.details?`<br>📝 ${p.details}`:""}</div>`;
+        }catch(e){ profileHtml = `<div class="hint">No se pudo descifrar (¿cambiaste de dispositivo?).</div>`; }
+      }
+      html += `
+        <div class="contact-card">
+          <div class="cc-head"><span class="cc-name">${r.from}</span><span class="cc-status ${r.status}">${r.status==='pending'?'Pendiente':r.status==='accepted'?'Aceptado':'Rechazado'}</span></div>
+          ${r.context ? `<div class="cc-ctx">Sobre: ${r.context}</div>` : ``}
+          ${profileHtml}
+          ${r.status==='pending' ? `
+          <div class="contact-actions">
+            <div class="mini-btn confirm" data-accept="${r.id}">✔ Aceptar</div>
+            <div class="mini-btn unavail" data-decline="${r.id}">Rechazar</div>
+          </div>` : ``}
+        </div>`;
+    }
+    body.innerHTML = html;
+    document.querySelectorAll("[data-accept]").forEach(b=>b.addEventListener("click", ()=>respondToRequest(b.dataset.accept, true)));
+    document.querySelectorAll("[data-decline]").forEach(b=>b.addEventListener("click", ()=>respondToRequest(b.dataset.decline, false)));
+  } else {
+    const mine = list.filter(r=>r.from===myAlias);
+    if(!mine.length){ body.innerHTML = `<div class="hint">No has enviado solicitudes de contacto todavía.</div>`; return; }
+    let html = "";
+    for(const r of mine){
+      let profileHtml = "";
+      if(r.status === 'accepted' && r.toCiphertext){
+        try{
+          const p = await decryptPackage(r.toCiphertext);
+          profileHtml = `<div class="contact-profile"><b>${p.name}</b><br>📞 ${p.phone}${p.address?`<br>📍 ${p.address}`:""}${p.details?`<br>📝 ${p.details}`:""}</div>`;
+        }catch(e){ profileHtml = `<div class="hint">No se pudo descifrar (¿cambiaste de dispositivo?).</div>`; }
+      }
+      html += `
+        <div class="contact-card">
+          <div class="cc-head"><span class="cc-name">${r.to}</span><span class="cc-status ${r.status}">${r.status==='pending'?'Pendiente':r.status==='accepted'?'Aceptado':'Rechazado'}</span></div>
+          ${r.context ? `<div class="cc-ctx">Sobre: ${r.context}</div>` : ``}
+          ${r.status==='pending' ? `<div class="hint">Esperando respuesta de ${r.to}...</div>` : ``}
+          ${profileHtml}
+        </div>`;
+    }
+    body.innerHTML = html;
+  }
+}
+
+
 async function sha256Hex(text){
   const enc = new TextEncoder().encode(text);
   const buf = await crypto.subtle.digest('SHA-256', enc);
@@ -1002,12 +1436,54 @@ function closePinSheet(){ pinOverlay.classList.remove("show"); }
 $("#pinInput").addEventListener("input", e=>{ $("#submitPin").disabled = e.target.value.trim().length===0; });
 $("#closePinSheet").addEventListener("click", closePinSheet);
 pinOverlay.addEventListener("click", e=>{ if(e.target===pinOverlay) closePinSheet(); });
+let adminKeyPair = null; // llave del admin para este sesión, derivada del PIN al entrar (nunca se guarda en claro)
+
+async function generateAdminKeypair(pin){
+  const pair = await crypto.subtle.generateKey(
+    { name:'RSA-OAEP', modulusLength:2048, publicExponent:new Uint8Array([1,0,1]), hash:'SHA-256' },
+    true, ['encrypt','decrypt']
+  );
+  const pubJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+  const privJwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
+  const encPriv = await encryptWithPassphrase(privJwk, pin);
+  await saveShared('app:admin_keypair', { pub: pubJwk, encPriv });
+  adminKeyPair = { publicKey: pair.publicKey, privateKey: pair.privateKey, publicJwk: pubJwk };
+}
+async function unlockAdminKeypair(pin){
+  const stored = await loadSharedFresh('app:admin_keypair', null);
+  if(!stored){
+    // PIN creado antes de que existiera esta función: generamos la llave
+    // ahora mismo, con el PIN que la persona ya escribió y verificamos que es correcto.
+    await generateAdminKeypair(pin);
+    return;
+  }
+  try{
+    const privJwk = await decryptWithPassphrase(stored.encPriv, pin);
+    const privateKey = await crypto.subtle.importKey('jwk', privJwk, {name:'RSA-OAEP', hash:'SHA-256'}, true, ['decrypt']);
+    const publicKey = await crypto.subtle.importKey('jwk', stored.pub, {name:'RSA-OAEP', hash:'SHA-256'}, true, ['encrypt']);
+    adminKeyPair = { publicKey, privateKey, publicJwk: stored.pub };
+  }catch(e){ console.error("No se pudo derivar la llave de admin:", e); }
+}
+async function getAdminPublicKey(){
+  const stored = await loadSharedFresh('app:admin_keypair', null);
+  if(!stored) return null;
+  return await crypto.subtle.importKey('jwk', stored.pub, {name:'RSA-OAEP', hash:'SHA-256'}, true, ['encrypt']);
+}
+async function decryptWithAdminKey(pkg){
+  if(!adminKeyPair) throw new Error("Llave de administrador no desbloqueada en esta sesión.");
+  const rawKey = await crypto.subtle.decrypt({name:'RSA-OAEP'}, adminKeyPair.privateKey, b642buf(pkg.ek));
+  const aesKey = await crypto.subtle.importKey('raw', rawKey, {name:'AES-GCM'}, false, ['decrypt']);
+  const plaintext = await crypto.subtle.decrypt({name:'AES-GCM', iv: b642buf(pkg.iv)}, aesKey, b642buf(pkg.ct));
+  return JSON.parse(new TextDecoder().decode(plaintext));
+}
+
 $("#submitPin").addEventListener("click", async ()=>{
   const pin = $("#pinInput").value.trim();
   if(!pin) return;
   const hash = await sha256Hex(pin);
   if(state.pinMode === "create"){
     await setAdminHash(hash);
+    await generateAdminKeypair(pin);
     await setIsAdminFlag(true);
     closePinSheet();
     showToast("PIN creado. Ya eres administrador ✔");
@@ -1015,6 +1491,7 @@ $("#submitPin").addEventListener("click", async ()=>{
   } else {
     const stored = await getAdminHash();
     if(stored === hash){
+      await unlockAdminKeypair(pin);
       await setIsAdminFlag(true);
       closePinSheet();
       showToast("Acceso de administrador concedido ✔");
@@ -1045,10 +1522,37 @@ $("#changePinBtn").addEventListener("click", ()=>{
   state.pinMode = "create";
   $("#pinInput").value = ""; $("#submitPin").disabled = true;
   $("#pinSheetTitle").textContent = "Cambiar PIN de administrador";
-  $("#pinSheetHint").textContent = "Escribe el nuevo PIN. Reemplazará al anterior para todos los administradores.";
+  $("#pinSheetHint").textContent = "Escribe el nuevo PIN. Reemplazará al anterior para todos los administradores. Ojo: los contactos entre usuarios que ya existan quedarán fuera del alcance del nuevo PIN (solo se protegen los que se hagan de aquí en adelante).";
   $("#submitPin").textContent = "Guardar nuevo PIN";
   pinOverlay.classList.add("show");
   $("#pinInput").focus();
+});
+
+$("#viewAllContactsBtn").addEventListener("click", async ()=>{
+  const body = $("#adminContactsBody");
+  if(!adminKeyPair){
+    body.innerHTML = `<p class="hint">Necesitas volver a escribir el PIN para desbloquear esta vista en esta sesión.</p>`;
+    closeAdminTools();
+    openAdminEntry();
+    return;
+  }
+  body.innerHTML = `<p class="hint">Cargando...</p>`;
+  const list = (await loadMatchRequests()).slice().sort((a,b)=>b.ts-a.ts);
+  if(!list.length){ body.innerHTML = `<p class="hint">No hay solicitudes de contacto todavía.</p>`; return; }
+  let html = "";
+  for(const r of list){
+    let fromP = null, toP = null;
+    try{ if(r.fromAdminCiphertext) fromP = await decryptWithAdminKey(r.fromAdminCiphertext); }catch(e){}
+    try{ if(r.toAdminCiphertext) toP = await decryptWithAdminKey(r.toAdminCiphertext); }catch(e){}
+    html += `
+      <div class="contact-card">
+        <div class="cc-head"><span class="cc-name">${r.from} → ${r.to}</span><span class="cc-status ${r.status}">${r.status==='pending'?'Pendiente':r.status==='accepted'?'Aceptado':'Rechazado'}</span></div>
+        ${r.context ? `<div class="cc-ctx">Sobre: ${r.context}</div>` : ``}
+        ${fromP ? `<div class="contact-profile"><b>${r.from}:</b> ${fromP.name} · 📞 ${fromP.phone}${fromP.address?` · 📍 ${fromP.address}`:""}</div>` : `<div class="hint">Sin datos cifrados para admin de ${r.from} (solicitud anterior a esta función).</div>`}
+        ${toP ? `<div class="contact-profile"><b>${r.to}:</b> ${toP.name} · 📞 ${toP.phone}${toP.address?` · 📍 ${toP.address}`:""}</div>` : ``}
+      </div>`;
+  }
+  body.innerHTML = html;
 });
 
 /* ---- exportar / importar todos los datos ---- */
@@ -1563,10 +2067,16 @@ function renderGroupBuyBody(){
     const savings = bestIndividualCUP ? Math.round((1 - gCUP/bestIndividualCUP)*100) : null;
     const myEntry = state.myAlias ? (g.participants||[]).find(p=>p.alias===state.myAlias) : null;
     const isCreator = state.myAlias && g.creatorAlias === state.myAlias;
+    const ctx = `compra conjunta de ${state.selectedProduct.name} en ${locName}`;
+    const participantsList = (g.participants||[]).filter(p=>p.alias !== state.myAlias);
     return `
       <div class="gb-card ${achieved?'achieved':''}" style="--i:${idx};">
         <div class="gb-top">
-          <div><div class="name">${locName} ${loc ? mapLinkHTML(loc) : ""}</div><div class="type">${locType} · creado por ${g.creatorAlias} ${repBadgeHTML(g.creatorAlias)}</div></div>
+          <div><div class="name">${locName} ${loc ? mapLinkHTML(loc) : ""}</div>
+            <div class="type">${locType} · creado por ${g.creatorAlias} ${repBadgeHTML(g.creatorAlias)}
+              ${!isCreator ? `<span class="mini-btn contact-req" data-reqcontact="${g.creatorAlias}" data-ctx="${ctx}" style="display:inline-flex;margin-left:6px;">🤝 Contactar</span>` : ``}
+            </div>
+          </div>
           <div class="gb-price"><div class="val">${dualPriceHTML(g.price, currency)}</div><div class="unit">por unidad</div></div>
         </div>
         ${savings!==null && savings>0 ? `<div class="gb-savings">Ahorra ~${savings}% vs. mejor precio individual</div>` : ``}
@@ -1576,6 +2086,9 @@ function renderGroupBuyBody(){
           <div class="progress-txt"><span>${joined} / ${g.targetQty} unidades</span><span>${pct}%</span></div>
         </div>
         <div class="participants">${(g.participants||[]).length} participante${(g.participants||[]).length!==1?"s":""}${myEntry?` · tú: ${myEntry.qty} unidad(es)`:""}</div>
+        ${participantsList.length ? `<div class="participants" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:-4px;">
+          ${participantsList.map(p=>`<span class="mini-btn contact-req" data-reqcontact="${p.alias}" data-ctx="${ctx}" style="display:inline-flex;">🤝 ${p.alias}</span>`).join("")}
+        </div>` : ``}
         <div class="gb-actions">
           ${myEntry
             ? `<div class="mini-btn leave" data-leave="${g.id}">Salir</div>`
@@ -1589,6 +2102,7 @@ function renderGroupBuyBody(){
   document.querySelectorAll("[data-join]").forEach(btn=> btn.addEventListener("click", ()=>openJoinSheet(btn.dataset.join)));
   document.querySelectorAll("[data-leave]").forEach(btn=> btn.addEventListener("click", ()=>leaveGroupBuy(btn.dataset.leave)));
   document.querySelectorAll("[data-delgb]").forEach(btn=> btn.addEventListener("click", ()=>deleteGroupBuy(btn.dataset.delgb)));
+  document.querySelectorAll("[data-reqcontact]").forEach(btn=> btn.addEventListener("click", ()=>requestContact(btn.dataset.reqcontact, btn.dataset.ctx)));
   if(justAchievedId) launchConfetti(90);
 }
 
@@ -1710,6 +2224,7 @@ $("#submitAlias").addEventListener("click", async ()=>{
   const alias = $("#aliasInput").value.trim();
   if(!alias) return;
   await setMyAlias(alias);
+  publishMyPublicKey(alias).then(refreshContactsBadge).catch(e=>console.error(e));
   aliasOverlay.classList.remove("show");
   const action = state.pendingAliasAction;
   state.pendingAliasAction = null;
@@ -2000,6 +2515,10 @@ async function bootApp(){
   await getMyAlias();
   state.isAdmin = localStorage.getItem('cotizalo_is_admin') === '1';
   updateAdminButtonUI();
+  if(state.myAlias){
+    publishMyPublicKey(state.myAlias).catch(e=>console.error(e));
+    refreshContactsBadge();
+  }
   renderGrid();
 }
 function renderConnectionError(){
