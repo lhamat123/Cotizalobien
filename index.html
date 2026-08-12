@@ -931,10 +931,27 @@ async function downloadJSONFile(fileId){
   // directo desde el navegador falla siempre con "blocked by CORS policy",
   // sin importar que el token/chat/mensaje estén perfectos. Por eso pasamos
   // solo esta descarga puntual por un proxy CORS público y gratuito.
-  const proxied = `https://api.allorigins.win/raw?url=${encodeURIComponent(fileUrl)}`;
-  const res2 = await fetch(proxied);
-  if(!res2.ok) throw new Error("El proxy de descarga no respondió correctamente (status " + res2.status + ").");
-  return await res2.json();
+  //
+  // Estos servicios gratuitos a veces fallan o se caen por ratos (le pasó a
+  // allorigins.win). Por eso probamos varios en orden: si uno falla, sigue
+  // con el siguiente en vez de dejar la app sin cargar.
+  const proxies = [
+    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    (u) => `https://corsfix.com/${u}`,
+  ];
+  let lastError;
+  for(const makeUrl of proxies){
+    try{
+      const res2 = await fetch(makeUrl(fileUrl));
+      if(!res2.ok) throw new Error("status " + res2.status);
+      return await res2.json();
+    }catch(e){
+      lastError = e;
+      console.error("Un proxy de descarga falló, probando el siguiente:", e);
+    }
+  }
+  throw new Error("Todos los proxies de descarga fallaron. Último error: " + (lastError && lastError.message));
 }
 async function loadFullDB(){
   try{
