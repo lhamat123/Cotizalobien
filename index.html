@@ -932,32 +932,32 @@ async function downloadJSONFile(fileId){
   // sin importar que el token/chat/mensaje estén perfectos. Por eso pasamos
   // solo esta descarga puntual por un proxy CORS público y gratuito.
   //
-  // Estos servicios gratuitos a veces fallan o se caen por ratos (le pasó a
-  // allorigins.win). Por eso probamos varios en orden: si uno falla, sigue
-  // con el siguiente en vez de dejar la app sin cargar.
+  // Los disparamos TODOS a la vez (no uno esperando al otro) y nos quedamos
+  // con el primero que responda bien — así ni un proxy caído ni uno lento
+  // frenan la app entera.
   const proxies = [
     (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
     (u) => `https://corsfix.com/${u}`,
+    (u) => `https://thingproxy.freeboard.io/fetch/${u}`,
   ];
-  let lastError;
-  for(const makeUrl of proxies){
-    try{
-      const res2 = await fetch(makeUrl(fileUrl));
-      if(!res2.ok) throw new Error("status " + res2.status);
-      return await res2.json();
-    }catch(e){
-      lastError = e;
-      console.error("Un proxy de descarga falló, probando el siguiente:", e);
-    }
+  const attempts = proxies.map(async (makeUrl) => {
+    const res = await fetch(makeUrl(fileUrl));
+    if(!res.ok) throw new Error("status " + res.status);
+    return await res.json();
+  });
+  try{
+    return await Promise.any(attempts);
+  }catch(e){
+    throw new Error("Todos los proxies de descarga fallaron.");
   }
-  throw new Error("Todos los proxies de descarga fallaron. Último error: " + (lastError && lastError.message));
 }
 async function loadFullDB(){
   try{
     const fileId = await fetchPinnedFileId();
     fullDB = await downloadJSONFile(fileId);
     dbLoadFailed = false;
+    try{ localStorage.setItem('cotizalo_db_cache', JSON.stringify(fullDB)); }catch(e){}
   }catch(e){
     console.error(e);
     dbLoadFailed = true; // OJO: no tocamos fullDB aquí — así no perdemos lo ya cargado en memoria
@@ -976,6 +976,7 @@ async function saveFullDB(){
     const res = await fetch(`${TG_API}/editMessageMedia`, { method: "POST", body: form });
     const data = await res.json();
     if(!data.ok) throw new Error(data.description || "Error al guardar en Telegram");
+    try{ localStorage.setItem('cotizalo_db_cache', JSON.stringify(fullDB)); }catch(e){}
   }catch(e){
     console.error(e);
     showToast("No se pudo guardar en Telegram. Revisa tu conexión.");
@@ -985,14 +986,24 @@ async function loadShared(key, fallback){
   if(!dbLoaded) await loadFullDB();
   return (key in fullDB) ? fullDB[key] : fallback;
 }
+let lastFreshFetchTs = 0;
 async function loadSharedFresh(key, fallback){
-  // igual que loadShared, pero siempre relee la base antes de responder — para
-  // datos donde importa ver lo que OTRA persona acaba de publicar (llaves
-  // públicas, solicitudes de contacto), en vez de la copia en caché local.
+  // igual que loadShared, pero relee la base antes de responder — para datos
+  // donde importa ver lo que OTRA persona acaba de publicar (llaves públicas,
+  // solicitudes de contacto). Para no disparar una descarga completa cada vez
+  // que la interfaz pide un dato de estos en rápida sucesión, si ya releímos
+  // hace menos de unos segundos usamos esa copia en vez de ir a la red de nuevo.
+  const FRESH_WINDOW_MS = 4000;
+  const now = Date.now();
+  if(dbLoaded && (now - lastFreshFetchTs) < FRESH_WINDOW_MS){
+    return (key in fullDB) ? fullDB[key] : fallback;
+  }
   try{
     const fileId = await fetchPinnedFileId();
     fullDB = await downloadJSONFile(fileId);
     dbLoadFailed = false;
+    lastFreshFetchTs = now;
+    try{ localStorage.setItem('cotizalo_db_cache', JSON.stringify(fullDB)); }catch(e){}
   }catch(e){ console.error(e); /* si falla, seguimos con lo que ya había en caché */ }
   dbLoaded = true;
   return (key in fullDB) ? fullDB[key] : fallback;
@@ -2550,13 +2561,7 @@ backBtn.addEventListener("click", ()=>{ state.view="grid"; state.selectedProduct
 $("#brandHome").addEventListener("click", ()=>{ state.view="grid"; state.selectedProduct=null; state.search=""; renderGrid(); });
 
 /* ---------- INIT ---------- */
-async function bootApp(){
-  main.innerHTML = `<div class="empty-state"><div class="big">💱</div><h3>Conectando con Telegram...</h3><p>Un momento, cargando el catálogo compartido.</p></div>`;
-  await loadFullDB();
-  if(dbLoadFailed){
-    renderConnectionError();
-    return;
-  }
+async function applyLoadedData(){
   await initCatalog();
   await loadExchange();
   await loadReputation();
@@ -2567,7 +2572,38 @@ async function bootApp(){
     publishMyPublicKey(state.myAlias).catch(e=>console.error(e));
     refreshContactsBadge();
   }
-  renderGrid();
+}
+async function bootApp(){
+  // 1) Si hay una copia guardada de una visita anterior, la mostramos YA
+  //    mismo — la app se siente instantánea en vez de hacerte esperar cada
+  //    vez a que responda Telegram, incluso si la conexión anda lenta.
+  let renderedFromCache = false;
+  try{
+    const cachedRaw = localStorage.getItem('cotizalo_db_cache');
+    if(cachedRaw){
+      fullDB = JSON.parse(cachedRaw);
+      dbLoaded = true;
+      dbLoadFailed = false;
+      await applyLoadedData();
+      if(state.view === "grid") renderGrid();
+      renderedFromCache = true;
+    }
+  }catch(e){ console.error("No se pudo usar la copia local guardada:", e); }
+
+  if(!renderedFromCache){
+    main.innerHTML = `<div class="empty-state"><div class="big">💱</div><h3>Conectando con Telegram...</h3><p>Un momento, cargando el catálogo compartido.</p></div>`;
+  }
+
+  // 2) Pase lo que pase arriba, siempre buscamos lo último de verdad —
+  //    si ya mostramos algo, esto pasa calladito en segundo plano.
+  await loadFullDB();
+  if(dbLoadFailed){
+    if(!renderedFromCache) renderConnectionError();
+    else showToast("No se pudo actualizar. Mostrando la última versión guardada.");
+    return;
+  }
+  await applyLoadedData();
+  if(state.view === "grid") renderGrid();
 }
 function renderConnectionError(){
   backBtn.style.display = "none";
