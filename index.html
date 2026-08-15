@@ -907,55 +907,26 @@ function launchConfetti(count){
 }
 
 /* ---------- TELEGRAM COMO BASE DE DATOS ---------- */
-// Toda la base compartida vive como UN archivo JSON adjunto al mensaje fijado
-// del chat configurado arriba. Se descarga entero al abrir la app y se vuelve
-// a subir entero cada vez que algo cambia.
+// Toda la base compartida vive como el TEXTO del mensaje fijado del chat
+// configurado arriba (no como archivo adjunto). Se lee con getChat, el mismo
+// método que usó la guía para detectar tu Chat ID — funciona siempre, sin
+// proxies ni CORS de por medio, porque es un endpoint normal de la API de
+// bots de Telegram. Límite real: 4096 caracteres por mensaje.
 let fullDB = {};
 let dbLoaded = false;
 let dbLoadFailed = false; // true = la última lectura falló (red/config), no confundir con "base vacía"
 
-async function fetchPinnedFileId(){
+async function fetchPinnedText(){
   const res = await fetch(`${TG_API}/getChat?chat_id=${encodeURIComponent(TELEGRAM_CHAT_ID)}`);
   const data = await res.json();
-  if(!data.ok || !data.result.pinned_message || !data.result.pinned_message.document){
+  if(!data.ok || !data.result.pinned_message || typeof data.result.pinned_message.text !== "string"){
     throw new Error("No se encontró el mensaje fijado con la base de datos.");
   }
-  return data.result.pinned_message.document.file_id;
-}
-async function downloadJSONFile(fileId){
-  const res1 = await fetch(`${TG_API}/getFile?file_id=${fileId}`);
-  const data1 = await res1.json();
-  if(!data1.ok) throw new Error("No se pudo localizar el archivo en Telegram.");
-  const fileUrl = `${TG_FILE_API}/${data1.result.file_path}`;
-  // OJO: api.telegram.org/file/... no envía cabeceras CORS, así que un fetch
-  // directo desde el navegador falla siempre con "blocked by CORS policy",
-  // sin importar que el token/chat/mensaje estén perfectos. Por eso pasamos
-  // solo esta descarga puntual por un proxy CORS público y gratuito.
-  //
-  // Los disparamos TODOS a la vez (no uno esperando al otro) y nos quedamos
-  // con el primero que responda bien — así ni un proxy caído ni uno lento
-  // frenan la app entera.
-  const proxies = [
-    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-    (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
-    (u) => `https://corsfix.com/${u}`,
-    (u) => `https://thingproxy.freeboard.io/fetch/${u}`,
-  ];
-  const attempts = proxies.map(async (makeUrl) => {
-    const res = await fetch(makeUrl(fileUrl));
-    if(!res.ok) throw new Error("status " + res.status);
-    return await res.json();
-  });
-  try{
-    return await Promise.any(attempts);
-  }catch(e){
-    throw new Error("Todos los proxies de descarga fallaron.");
-  }
+  return JSON.parse(data.result.pinned_message.text);
 }
 async function loadFullDB(){
   try{
-    const fileId = await fetchPinnedFileId();
-    fullDB = await downloadJSONFile(fileId);
+    fullDB = await fetchPinnedText();
     dbLoadFailed = false;
     try{ localStorage.setItem('cotizalo_db_cache', JSON.stringify(fullDB)); }catch(e){}
   }catch(e){
@@ -966,17 +937,20 @@ async function loadFullDB(){
   dbLoaded = true;
 }
 async function saveFullDB(){
+  const text = JSON.stringify(fullDB);
+  if(text.length > 4096){
+    showToast("⚠️ La base ya no cabe en un mensaje de Telegram (límite 4096). Borra datos viejos desde el panel de administrador.");
+    return;
+  }
   try{
-    const blob = new Blob([JSON.stringify(fullDB)], { type: "application/json" });
-    const form = new FormData();
-    form.append("chat_id", TELEGRAM_CHAT_ID);
-    form.append("message_id", TELEGRAM_DB_MESSAGE_ID);
-    form.append("media", JSON.stringify({ type: "document", media: "attach://db" }));
-    form.append("db", blob, "cotizalo-db.json");
-    const res = await fetch(`${TG_API}/editMessageMedia`, { method: "POST", body: form });
+    const res = await fetch(`${TG_API}/editMessageText`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, message_id: TELEGRAM_DB_MESSAGE_ID, text })
+    });
     const data = await res.json();
     if(!data.ok) throw new Error(data.description || "Error al guardar en Telegram");
-    try{ localStorage.setItem('cotizalo_db_cache', JSON.stringify(fullDB)); }catch(e){}
+    try{ localStorage.setItem('cotizalo_db_cache', text); }catch(e){}
   }catch(e){
     console.error(e);
     showToast("No se pudo guardar en Telegram. Revisa tu conexión.");
@@ -990,17 +964,16 @@ let lastFreshFetchTs = 0;
 async function loadSharedFresh(key, fallback){
   // igual que loadShared, pero relee la base antes de responder — para datos
   // donde importa ver lo que OTRA persona acaba de publicar (llaves públicas,
-  // solicitudes de contacto). Para no disparar una descarga completa cada vez
-  // que la interfaz pide un dato de estos en rápida sucesión, si ya releímos
-  // hace menos de unos segundos usamos esa copia en vez de ir a la red de nuevo.
+  // solicitudes de contacto). Para no disparar una relectura cada vez que la
+  // interfaz pide un dato de estos en rápida sucesión, si ya releímos hace
+  // menos de unos segundos usamos esa copia en vez de ir a la red de nuevo.
   const FRESH_WINDOW_MS = 4000;
   const now = Date.now();
   if(dbLoaded && (now - lastFreshFetchTs) < FRESH_WINDOW_MS){
     return (key in fullDB) ? fullDB[key] : fallback;
   }
   try{
-    const fileId = await fetchPinnedFileId();
-    fullDB = await downloadJSONFile(fileId);
+    fullDB = await fetchPinnedText();
     dbLoadFailed = false;
     lastFreshFetchTs = now;
     try{ localStorage.setItem('cotizalo_db_cache', JSON.stringify(fullDB)); }catch(e){}
@@ -1015,8 +988,7 @@ async function saveShared(key, value){
   // vieja o incompleta — así nunca se sobrescribe la base real por accidente.
   let fresh;
   try{
-    const fileId = await fetchPinnedFileId();
-    fresh = await downloadJSONFile(fileId);
+    fresh = await fetchPinnedText();
   }catch(e){
     console.error(e);
     showToast("No se pudo guardar: no se pudo confirmar la base de datos más reciente. Intenta de nuevo.");
@@ -1733,13 +1705,24 @@ function refreshCurrentView(){
   else renderProductView();
 }
 
-/* ---------- IMAGE COMPRESSION (200x200, menos de 10KB, calidad automática) ---------- */
+/* ---------- IMAGE COMPRESSION (200x200, menos de 10KB, calidad automática) ----------
+   Las imágenes YA NO viajan dentro del texto de la base de datos (no caben:
+   el límite es 4096 caracteres). En vez de eso, se suben a Telegram como un
+   mensaje aparte, y solo guardamos la RUTA del archivo (unas pocas letras).
+   Al mostrarlas, un <img src="..."> normal las carga sin problema — las
+   imágenes no tienen la restricción de CORS que sí tienen las descargas
+   por código (fetch), así que no hace falta ningún proxy para esto. */
 const MAX_IMG_BYTES = 10 * 1024; // límite real: menos de 10KB por imagen
 
-function dataUrlBytes(dataUrl){
-  const base64 = dataUrl.split(',')[1] || '';
-  const padding = (base64.match(/=+$/) || [''])[0].length;
-  return Math.floor(base64.length * 3/4) - padding;
+function imgUrl(path){
+  if(!path) return null;
+  // compatibilidad con fotos guardadas por la versión anterior (base64 o URL completa)
+  if(path.startsWith('data:') || path.startsWith('http')) return path;
+  return `${TG_FILE_API}/${path}`;
+}
+
+function canvasToBlob(canvas, quality){
+  return new Promise((resolve)=> canvas.toBlob(resolve, 'image/jpeg', quality));
 }
 
 async function loadAsBitmapSource(file){
@@ -1761,7 +1744,7 @@ async function loadAsBitmapSource(file){
   });
 }
 
-async function compressImage(file){
+async function compressImageToBlob(file){
   const size = 200;
   const source = await loadAsBitmapSource(file);
   const iw = source.width, ih = source.height;
@@ -1777,12 +1760,26 @@ async function compressImage(file){
 
   // baja la calidad automáticamente, en pasos finos, hasta quedar bajo 10KB reales
   let quality = 0.75;
-  let dataUrl = canvas.toDataURL('image/jpeg', quality);
-  while(dataUrlBytes(dataUrl) > MAX_IMG_BYTES && quality > 0.04){
+  let blob = await canvasToBlob(canvas, quality);
+  while(blob.size > MAX_IMG_BYTES && quality > 0.04){
     quality = Math.max(0.04, quality - 0.05);
-    dataUrl = canvas.toDataURL('image/jpeg', quality);
+    blob = await canvasToBlob(canvas, quality);
   }
-  return dataUrl; // siempre 200x200, siempre menos de 10KB (o lo más cercano posible)
+  return blob; // siempre 200x200, siempre menos de 10KB (o lo más cercano posible)
+}
+
+async function uploadImageToTelegram(blob){
+  const form = new FormData();
+  form.append("chat_id", TELEGRAM_CHAT_ID);
+  form.append("document", blob, "img.jpg");
+  const res = await fetch(`${TG_API}/sendDocument`, { method: "POST", body: form });
+  const data = await res.json();
+  if(!data.ok) throw new Error(data.description || "No se pudo subir la imagen");
+  const fileId = data.result.document.file_id;
+  const res2 = await fetch(`${TG_API}/getFile?file_id=${fileId}`);
+  const data2 = await res2.json();
+  if(!data2.ok) throw new Error("No se pudo obtener la ruta de la imagen subida");
+  return data2.result.file_path;
 }
 
 let imgEditTarget = null; // {kind:'product'|'location'|'new-product'|'new-location'|'report-photo', id?}
@@ -1791,31 +1788,40 @@ $("#globalImgInput").addEventListener("change", async (e)=>{
   e.target.value = "";
   if(!file || !imgEditTarget) return;
   if(!file.type.startsWith("image/")){ showToast("Elige un archivo de imagen"); imgEditTarget=null; return; }
-  try{
-    const dataUrl = await compressImage(file);
-    if(imgEditTarget.kind === 'product'){
-      const p = PRODUCTS.find(x=>x.id===imgEditTarget.id);
-      if(p){ p.img = dataUrl; await persistProducts(); showToast("Imagen actualizada"); renderManage(); }
-    } else if(imgEditTarget.kind === 'location'){
-      const l = LOCATIONS.find(x=>x.id===imgEditTarget.id);
-      if(l){ l.img = dataUrl; await persistLocations(); showToast("Imagen actualizada"); renderManage(); }
-    } else if(imgEditTarget.kind === 'new-product'){
-      pendingNewProdImg = dataUrl;
-      showPreview("newProdImgPreview", dataUrl);
-    } else if(imgEditTarget.kind === 'new-location'){
-      pendingNewLocImg = dataUrl;
-      showPreview("newLocImgPreview", dataUrl);
-    } else if(imgEditTarget.kind === 'report-photo'){
-      pendingReportPhoto = dataUrl;
-      showPreview("reportPhotoPreview", dataUrl);
-    }
-  }catch(err){ console.error(err); showToast("No se pudo procesar la imagen"); }
+  const target = imgEditTarget;
   imgEditTarget = null;
+  try{
+    const blob = await compressImageToBlob(file);
+    // vista previa instantánea con la copia local, mientras se sube de fondo
+    const localPreviewUrl = URL.createObjectURL(blob);
+    const previewIdByKind = {
+      'new-product': 'newProdImgPreview',
+      'new-location': 'newLocImgPreview',
+      'report-photo': 'reportPhotoPreview',
+    };
+    if(previewIdByKind[target.kind]) showPreview(previewIdByKind[target.kind], localPreviewUrl);
+
+    const path = await uploadImageToTelegram(blob);
+
+    if(target.kind === 'product'){
+      const p = PRODUCTS.find(x=>x.id===target.id);
+      if(p){ p.img = path; await persistProducts(); showToast("Imagen actualizada"); renderManage(); }
+    } else if(target.kind === 'location'){
+      const l = LOCATIONS.find(x=>x.id===target.id);
+      if(l){ l.img = path; await persistLocations(); showToast("Imagen actualizada"); renderManage(); }
+    } else if(target.kind === 'new-product'){
+      pendingNewProdImg = path;
+    } else if(target.kind === 'new-location'){
+      pendingNewLocImg = path;
+    } else if(target.kind === 'report-photo'){
+      pendingReportPhoto = path;
+    }
+  }catch(err){ console.error(err); showToast("No se pudo procesar o subir la imagen"); }
 });
-function showPreview(id, dataUrl){
+function showPreview(id, url){
   const el = document.getElementById(id);
   if(!el) return;
-  el.src = dataUrl;
+  el.src = url;
   el.style.display = "inline-block";
   const wrap = document.getElementById(id+"Wrap");
   if(wrap) wrap.style.display = "flex";
@@ -1891,7 +1897,7 @@ function renderGrid(){
     <div class="grid" id="prodGrid">
       ${filtered.map((p,idx)=>`
         <div class="p-card" data-id="${p.id}" style="--i:${idx};">
-          ${p.img ? `<img class="card-bg-img" src="${p.img}">` : ``}
+          ${p.img ? `<img class="card-bg-img" src="${imgUrl(p.img)}">` : ``}
           <div class="card-content">
             ${p.img ? `` : `<div class="icon">${p.icon}</div>`}
             <div class="name">${p.name}</div>
@@ -1965,7 +1971,7 @@ function renderProductView(){
 
   let html = `
     <div class="product-head">
-      ${p.img ? `<img class="thumb" src="${p.img}">` : `<div class="icon">${p.icon}</div>`}
+      ${p.img ? `<img class="thumb" src="${imgUrl(p.img)}">` : `<div class="icon">${p.icon}</div>`}
       <div>
         <h2>${p.name}</h2>
         <div class="cat">${p.cat}</div>
@@ -2034,7 +2040,7 @@ function rungHTML(r, rank, isAvailable, idx){
   const loc = LOCATIONS.find(l=>l.id===r.locId);
   const locName = loc ? loc.name : "(lugar eliminado)";
   const locType = loc ? loc.type : "";
-  const avatar = loc && loc.img ? `<img class="avatar" src="${loc.img}">` : "";
+  const avatar = loc && loc.img ? `<img class="avatar" src="${imgUrl(loc.img)}">` : "";
   const confirmCount = (r.confirmations||[]).length;
   const lastTs = confirmCount ? r.confirmations[confirmCount-1] : r.ts;
   return `
@@ -2054,7 +2060,7 @@ function rungHTML(r, rank, isAvailable, idx){
           <div class="ago">${timeAgo(lastTs)}</div>
         </div>
         ${r.alias ? `<div class="rung-meta" style="margin-top:6px;padding-top:0;border-top:none;"><span class="ago">reportado por ${r.alias}</span>${repBadgeHTML(r.alias)}</div>` : ``}
-        ${r.photo ? `<img class="photo-thumb" src="${r.photo}" data-lightbox="${r.id}">` : ``}
+        ${r.photo ? `<img class="photo-thumb" src="${imgUrl(r.photo)}" data-lightbox="${r.id}">` : ``}
         <div class="rung-actions">
           ${isAvailable ? `
           <div class="mini-btn confirm" data-rid="${r.id}">✔ Sigue así</div>
@@ -2200,7 +2206,7 @@ function renderGbLocList(filter){
   const list = LOCATIONS.filter(l=>l.name.toLowerCase().includes(filter.toLowerCase()));
   $("#gbLocList").innerHTML = list.map(l=>`
     <div class="loc-opt ${state.selectedLocId===l.id?'selected':''}" data-id="${l.id}">
-      <span class="loc-main">${l.img?`<img class="avatar" src="${l.img}">`:''}${l.name}</span><span class="type-tag">${l.type}</span>
+      <span class="loc-main">${l.img?`<img class="avatar" src="${imgUrl(l.img)}">`:''}${l.name}</span><span class="type-tag">${l.type}</span>
     </div>
   `).join("") || `<div style="padding:14px;color:var(--muted);font-size:13px;">Sin coincidencias</div>`;
   document.querySelectorAll("#gbLocList .loc-opt").forEach(el=>{
@@ -2310,7 +2316,7 @@ function renderLocList(filter){
   const list = LOCATIONS.filter(l=>l.name.toLowerCase().includes(filter.toLowerCase()));
   $("#locList").innerHTML = list.map(l=>`
     <div class="loc-opt ${state.selectedLocId===l.id?'selected':''}" data-id="${l.id}">
-      <span class="loc-main">${l.img?`<img class="avatar" src="${l.img}">`:''}${l.name}</span><span class="type-tag">${l.type}</span>
+      <span class="loc-main">${l.img?`<img class="avatar" src="${imgUrl(l.img)}">`:''}${l.name}</span><span class="type-tag">${l.type}</span>
     </div>
   `).join("") || `<div style="padding:14px;color:var(--muted);font-size:13px;">Sin coincidencias</div>`;
   document.querySelectorAll("#locList .loc-opt").forEach(el=>{
@@ -2374,7 +2380,7 @@ function renderManage(){
       <div class="manage-list">
         ${PRODUCTS.map(p=>`
           <div class="manage-item">
-            ${p.img ? `<img class="mi-thumb" src="${p.img}">` : `<div class="mi-icon">${p.icon}</div>`}
+            ${p.img ? `<img class="mi-thumb" src="${imgUrl(p.img)}">` : `<div class="mi-icon">${p.icon}</div>`}
             <div class="mi-info"><div class="mi-name">${p.name}</div><div class="mi-cat">${p.cat}</div></div>
             <button class="img-icon" data-imgprod="${p.id}">📷</button>
             <button class="del-icon" data-delprod="${p.id}">🗑</button>
@@ -2440,7 +2446,7 @@ function renderManage(){
       <div class="manage-list">
         ${LOCATIONS.map(l=>`
           <div class="manage-item">
-            ${l.img ? `<img class="mi-thumb" src="${l.img}">` : `<div class="mi-icon">📍</div>`}
+            ${l.img ? `<img class="mi-thumb" src="${imgUrl(l.img)}">` : `<div class="mi-icon">📍</div>`}
             <div class="mi-info"><div class="mi-name">${l.name}</div><div class="mi-cat">${l.type}${(l.lat!=null)?' · 📍 con ubicación':''}</div></div>
             ${mapLinkHTML(l)}
             <button class="img-icon" data-imgloc="${l.id}">📷</button>
