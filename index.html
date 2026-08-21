@@ -224,6 +224,28 @@
   .tab:active{transform:scale(.96);}
   .tab.active{background:var(--gold);color:#171203;animation:popIn .3s ease;}
   .tab.gb.active{background:var(--violet);color:#0E0B1A;}
+  .tab.rev.active{background:var(--teal);color:#04211D;}
+
+  .review-form{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px;}
+  .star-picker{display:flex;gap:6px;margin-bottom:12px;}
+  .star-picker .star{font-size:26px;cursor:pointer;color:var(--line);transition:transform .1s, color .15s;user-select:none;}
+  .star-picker .star:hover{transform:scale(1.15);}
+  .star-picker .star.on{color:var(--gold);}
+  .review-textarea{width:100%;min-height:70px;padding:12px 13px;border-radius:10px;background:var(--surface2);
+    border:1px solid var(--line);color:var(--text);font-size:14px;font-family:'Inter',sans-serif;resize:vertical;margin-bottom:10px;}
+  .review-summary{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+  .review-summary .avg{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;color:var(--gold);}
+  .review-summary .stars-static{font-size:14px;color:var(--gold);letter-spacing:1px;}
+  .review-summary .count{font-size:12px;color:var(--muted);}
+  .review-card{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:10px;
+    animation:fadeUp .35s ease both;}
+  .review-card .rc-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;}
+  .review-card .rc-who{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .review-card .rc-name{font-weight:600;font-size:13.5px;}
+  .review-card .rc-stars{font-size:12px;color:var(--gold);letter-spacing:1px;}
+  .review-card .rc-ago{font-size:11px;color:var(--muted);}
+  .review-card .rc-text{font-size:13.5px;color:#cfd8db;line-height:1.5;margin-top:4px;}
+  .review-card .rc-actions{margin-top:8px;}
 
   .best-banner{
     background:linear-gradient(120deg,var(--gold-dim),transparent);
@@ -755,6 +777,7 @@
      GRID                        → pantalla principal (lista de productos)
      LADDER / PRODUCT VIEW       → detalle de producto + ranking de precios
      GROUP BUYS                  → compras conjuntas
+     RESEÑAS                     → notas y valoraciones globales por producto
      ADD PRICE REPORT SHEET      → formulario de reportar precio
      MANAGE CATALOG SHEET        → añadir/eliminar productos y lugares
      NAV / INIT                  → arranque de la app
@@ -843,6 +866,7 @@ let state = {
   selectedProduct: null,
   reports: [],
   groupBuys: [],
+  reviews: [],
   selectedLocId: null,
   activeTab: "precios",
   myAlias: null,
@@ -1002,6 +1026,8 @@ async function getReports(productId){ return await loadShared('reports:'+product
 async function saveReports(productId, reports){ await saveShared('reports:'+productId, reports); }
 async function getGroupBuys(productId){ return await loadShared('groupbuys:'+productId, []); }
 async function saveGroupBuys(productId, gbs){ await saveShared('groupbuys:'+productId, gbs); }
+async function getReviews(productId){ return await loadShared('reviews:'+productId, []); }
+async function saveReviews(productId, reviews){ await saveShared('reviews:'+productId, reviews); }
 
 async function initCatalog(){
   // Si la última carga falló (red/config), NUNCA sembramos el catálogo por
@@ -1861,6 +1887,16 @@ async function getGbCount(productId){
   gbStatCache[productId] = gbs.filter(g=>!g.closed).length;
   return gbStatCache[productId];
 }
+let reviewStatCache = {};
+async function getReviewStat(productId){
+  if(reviewStatCache[productId] !== undefined) return reviewStatCache[productId];
+  const reviews = await getReviews(productId);
+  const withStars = reviews.filter(r=>r.stars>0);
+  reviewStatCache[productId] = withStars.length
+    ? { avg: withStars.reduce((s,r)=>s+r.stars,0)/withStars.length, count: withStars.length }
+    : null;
+  return reviewStatCache[productId];
+}
 
 /* ---------- GRID ---------- */
 function currentCategories(){
@@ -1903,6 +1939,7 @@ function renderGrid(){
             <div class="name">${p.name}</div>
             <div class="cat">${p.cat}</div>
             <div class="stat empty shimmer-txt" data-stat="${p.id}">Cargando...</div>
+            <div class="cat" data-review="${p.id}" style="display:none;color:var(--gold);"></div>
             <div class="gb-badge" data-gb="${p.id}" style="display:none;">🤝 Compra conjunta activa</div>
           </div>
         </div>
@@ -1949,6 +1986,9 @@ function renderGrid(){
     const gbCount = await getGbCount(p.id);
     const gbEl = document.querySelector(`[data-gb="${p.id}"]`);
     if(gbEl && gbCount>0) gbEl.style.display = "block";
+    const revStat = await getReviewStat(p.id);
+    const revEl = document.querySelector(`[data-review="${p.id}"]`);
+    if(revEl && revStat){ revEl.textContent = `★ ${revStat.avg.toFixed(1)} (${revStat.count})`; revEl.style.display = "block"; }
   });
 }
 
@@ -1960,12 +2000,13 @@ async function openProduct(id){
   state.activeTab = "precios";
   state.reports = await getReports(id);
   state.groupBuys = await getGroupBuys(id);
+  state.reviews = await getReviews(id);
   renderProductView();
 }
 
 function renderProductView(){
   backBtn.style.display = "flex";
-  fab.style.display = "flex";
+  fab.style.display = state.activeTab === "resenas" ? "none" : "flex";
   fab.classList.toggle("gb-mode", state.activeTab==="compras");
   const p = state.selectedProduct;
 
@@ -1980,6 +2021,7 @@ function renderProductView(){
     <div class="tabs">
       <div class="tab ${state.activeTab==='precios'?'active':''}" data-tab="precios">Precios individuales</div>
       <div class="tab gb ${state.activeTab==='compras'?'active':''}" data-tab="compras">🤝 Compras conjuntas</div>
+      <div class="tab rev ${state.activeTab==='resenas'?'active':''}" data-tab="resenas">💬 Reseñas</div>
     </div>
     <div id="tabBody"></div>
   `;
@@ -1990,7 +2032,8 @@ function renderProductView(){
   });
 
   if(state.activeTab === "precios") renderLadderBody();
-  else renderGroupBuyBody();
+  else if(state.activeTab === "compras") renderGroupBuyBody();
+  else renderReviewsBody();
 }
 
 function renderLadderBody(){
@@ -2295,6 +2338,99 @@ $("#submitAlias").addEventListener("click", async ()=>{
   state.pendingAliasAction = null;
   if(action) action(alias);
 });
+
+/* ---------- RESEÑAS DEL PRODUCTO (NOTAS GLOBALES) ---------- */
+let selectedReviewStars = 0;
+
+function renderReviewsBody(){
+  const body = $("#tabBody");
+  const reviews = state.reviews.slice().sort((a,b)=>b.ts-a.ts);
+  const withStars = reviews.filter(r=>r.stars>0);
+  const avg = withStars.length ? (withStars.reduce((s,r)=>s+r.stars,0)/withStars.length) : 0;
+
+  let html = `
+    <div class="review-form">
+      <div class="star-picker" id="reviewStarPicker">
+        ${[1,2,3,4,5].map(n=>`<span class="star" data-star="${n}">★</span>`).join("")}
+      </div>
+      <textarea class="review-textarea" id="reviewText" placeholder="Cuenta tu experiencia con este producto: calidad, dónde lo conseguiste, si vale la pena..."></textarea>
+      <button class="submit-btn teal" id="submitReviewBtn">Publicar reseña</button>
+    </div>
+  `;
+
+  if(withStars.length){
+    html += `
+      <div class="review-summary">
+        <div class="avg">${avg.toFixed(1)}</div>
+        <div>
+          <div class="stars-static">${"★".repeat(Math.round(avg))}${"☆".repeat(5-Math.round(avg))}</div>
+          <div class="count">${withStars.length} valoración${withStars.length!==1?"es":""} · ${reviews.length} reseña${reviews.length!==1?"s":""}</div>
+        </div>
+      </div>`;
+  }
+
+  if(!reviews.length){
+    html += `<div class="hint">Todavía no hay reseñas de este producto. Sé el primero en dejar una nota para la comunidad.</div>`;
+  } else {
+    reviews.forEach(r=>{
+      const isMine = state.myAlias && r.alias === state.myAlias;
+      html += `
+        <div class="review-card">
+          <div class="rc-head">
+            <div class="rc-who">
+              <span class="rc-name">${r.alias}</span>
+              ${repBadgeHTML(r.alias)}
+              ${r.stars ? `<span class="rc-stars">${"★".repeat(r.stars)}${"☆".repeat(5-r.stars)}</span>` : ``}
+            </div>
+            <span class="rc-ago">${timeAgo(r.ts)}</span>
+          </div>
+          ${r.text ? `<div class="rc-text">${r.text}</div>` : ``}
+          ${(isMine || state.isAdmin) ? `<div class="rc-actions"><span class="mini-btn unavail" data-delreview="${r.id}" style="flex:none;padding:6px 12px;font-size:11px;">Eliminar</span></div>` : ``}
+        </div>`;
+    });
+  }
+
+  body.innerHTML = html;
+
+  selectedReviewStars = 0;
+  document.querySelectorAll("#reviewStarPicker .star").forEach(starEl=>{
+    starEl.addEventListener("click", ()=>{
+      selectedReviewStars = parseInt(starEl.dataset.star);
+      document.querySelectorAll("#reviewStarPicker .star").forEach(s=>{
+        s.classList.toggle("on", parseInt(s.dataset.star) <= selectedReviewStars);
+      });
+    });
+  });
+  $("#submitReviewBtn").addEventListener("click", submitReview);
+  document.querySelectorAll("[data-delreview]").forEach(btn=>{
+    btn.addEventListener("click", ()=>deleteReview(btn.dataset.delreview));
+  });
+}
+
+function submitReview(){
+  const text = $("#reviewText").value.trim();
+  if(!text && !selectedReviewStars){ showToast("Escribe algo o pon una valoración"); return; }
+  ensureAlias(async (alias)=>{
+    const existing = state.reviews.find(r=>r.alias===alias);
+    if(existing){
+      existing.text = text;
+      existing.stars = selectedReviewStars || existing.stars || 0;
+      existing.ts = Date.now();
+    } else {
+      state.reviews.push({ id: genId(), alias, text, stars: selectedReviewStars, ts: Date.now() });
+    }
+    await saveReviews(state.selectedProduct.id, state.reviews);
+    showToast("Reseña publicada");
+    renderReviewsBody();
+  });
+}
+async function deleteReview(reviewId){
+  if(!confirm("¿Eliminar esta reseña?")) return;
+  state.reviews = state.reviews.filter(r=>r.id!==reviewId);
+  await saveReviews(state.selectedProduct.id, state.reviews);
+  showToast("Reseña eliminada");
+  renderReviewsBody();
+}
 
 /* ---------- ADD PRICE REPORT SHEET ---------- */
 const overlay = $("#overlay");
